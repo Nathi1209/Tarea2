@@ -39,6 +39,36 @@ app.get('/mundiales', (req, res) => {
   res.json(lista)
 })
 
+app.get('/mundial/:slug', (req, res) => {
+  const mundial = mundiales.find(m => m.slug === req.params.slug)
+  if (!mundial) {
+    return res.status(404).json({
+      error: 'Not Found',
+      mensaje: `No existe un mundial con slug '${req.params.slug}'`
+    })
+  }
+  res.json(mundial)
+})
+
+app.get('/campeon/:pais', (req, res) => {
+  const pais = req.params.pais.toLowerCase()
+  const slugs = mundiales
+    .filter(m => m.campeon.toLowerCase() === pais)
+    .map(m => m.slug)
+  if (slugs.length === 0) {
+    return res.status(404).json({
+      error: 'Not Found',
+      mensaje: `No hay mundiales ganados por '${req.params.pais}'`
+    })
+  }
+  res.json({ pais: req.params.pais, mundiales: slugs })
+})
+
+app.get('/random', (req, res) => {
+  const indice = Math.floor(Math.random() * mundiales.length)
+  res.json(mundiales[indice])
+})
+
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`)
 })
