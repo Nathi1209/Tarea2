@@ -28,6 +28,7 @@ const buscarTexto = db.prepare(`
   ORDER BY anio DESC
 `)
 
+
 app.get('/', (req, res) => {
   res.json({
     nombre: 'API Copa Mundial de la FIFA',
