@@ -1,19 +1,32 @@
 import express from 'express'
-import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { db } from './src/db/db.js'
 import { searchSchema } from './src/schemas/search.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-
-const mundiales = JSON.parse(
-  readFileSync(join(__dirname, 'src', 'data', 'mundiales.json'), 'utf8')
-)
 
 const app = express()
 const PORT = 4321
 
 app.use('/imagenes', express.static(join(__dirname, 'public', 'imagenes')))
+
+const selectResumen = db.prepare('SELECT nombre, anio, sede, campeon, slug FROM mundiales ORDER BY anio DESC')
+const selectTodos = db.prepare('SELECT * FROM mundiales ORDER BY anio DESC')
+const selectPorSlug = db.prepare('SELECT * FROM mundiales WHERE slug = ?')
+const selectSlugsPorCampeon = db.prepare('SELECT slug FROM mundiales WHERE LOWER(campeon) = LOWER(?)')
+const selectRandom = db.prepare('SELECT * FROM mundiales ORDER BY RANDOM() LIMIT 1')
+const buscarTexto = db.prepare(`
+  SELECT * FROM mundiales
+  WHERE LOWER(nombre)      LIKE '%' || LOWER(?) || '%'
+     OR LOWER(sede)        LIKE '%' || LOWER(?) || '%'
+     OR LOWER(campeon)     LIKE '%' || LOWER(?) || '%'
+     OR LOWER(subcampeon)  LIKE '%' || LOWER(?) || '%'
+     OR LOWER(goleador)    LIKE '%' || LOWER(?) || '%'
+     OR LOWER(resumen)     LIKE '%' || LOWER(?) || '%'
+     OR LOWER(descripcion) LIKE '%' || LOWER(?) || '%'
+  ORDER BY anio DESC
+`)
 
 app.get('/', (req, res) => {
   res.json({
@@ -32,18 +45,11 @@ app.get('/', (req, res) => {
 })
 
 app.get('/mundiales', (req, res) => {
-  const lista = mundiales.map(m => ({
-    nombre: m.nombre,
-    anio: m.anio,
-    sede: m.sede,
-    campeon: m.campeon,
-    slug: m.slug
-  }))
-  res.json(lista)
+  res.json(selectResumen.all())
 })
 
 app.get('/mundial/:slug', (req, res) => {
-  const mundial = mundiales.find(m => m.slug === req.params.slug)
+  const mundial = selectPorSlug.get(req.params.slug)
   if (!mundial) {
     return res.status(404).json({
       error: 'Not Found',
@@ -54,22 +60,18 @@ app.get('/mundial/:slug', (req, res) => {
 })
 
 app.get('/campeon/:pais', (req, res) => {
-  const pais = req.params.pais.toLowerCase()
-  const slugs = mundiales
-    .filter(m => m.campeon.toLowerCase() === pais)
-    .map(m => m.slug)
-  if (slugs.length === 0) {
+  const filas = selectSlugsPorCampeon.all(req.params.pais)
+  if (filas.length === 0) {
     return res.status(404).json({
       error: 'Not Found',
       mensaje: `No hay mundiales ganados por '${req.params.pais}'`
     })
   }
-  res.json({ pais: req.params.pais, mundiales: slugs })
+  res.json({ pais: req.params.pais, mundiales: filas.map(f => f.slug) })
 })
 
 app.get('/random', (req, res) => {
-  const indice = Math.floor(Math.random() * mundiales.length)
-  res.json(mundiales[indice])
+  res.json(selectRandom.get())
 })
 
 app.get('/search/:text', (req, res) => {
@@ -80,12 +82,9 @@ app.get('/search/:text', (req, res) => {
       mensaje: parseo.error.issues.map(i => i.message).join(', ')
     })
   }
-  const texto = parseo.data.text.toLowerCase()
-  const resultados = mundiales.filter(m =>
-    [m.nombre, m.sede, m.campeon, m.subcampeon, m.goleador, m.resumen, m.descripcion]
-      .some(campo => campo.toLowerCase().includes(texto))
-  )
-  res.json({ texto: parseo.data.text, total: resultados.length, resultados })
+  const t = parseo.data.text
+  const resultados = buscarTexto.all(t, t, t, t, t, t, t)
+  res.json({ texto: t, total: resultados.length, resultados })
 })
 
 app.use((req, res) => {
