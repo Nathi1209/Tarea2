@@ -45,6 +45,9 @@ app.get('/', (req, res) => {
 })
 
 app.get('/mundiales', (req, res) => {
+  if (req.query.include === 'full') {
+    return res.json(selectTodos.all())
+  }
   res.json(selectResumen.all())
 })
 

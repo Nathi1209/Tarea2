@@ -66,3 +66,5 @@ xh GET :4321/random
 xh GET :4321/search/final
 xh GET :4321/search/ab
 ```
+
+Las capturas de cada prueba estan documentadas en [CAPTURAS.md](./CAPTURAS.md).
