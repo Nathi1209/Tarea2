@@ -2,6 +2,7 @@ import express from 'express'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { searchSchema } from './src/schemas/search.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -11,6 +12,8 @@ const mundiales = JSON.parse(
 
 const app = express()
 const PORT = 4321
+
+app.use('/imagenes', express.static(join(__dirname, 'public', 'imagenes')))
 
 app.get('/', (req, res) => {
   res.json({
@@ -67,6 +70,29 @@ app.get('/campeon/:pais', (req, res) => {
 app.get('/random', (req, res) => {
   const indice = Math.floor(Math.random() * mundiales.length)
   res.json(mundiales[indice])
+})
+
+app.get('/search/:text', (req, res) => {
+  const parseo = searchSchema.safeParse({ text: req.params.text })
+  if (!parseo.success) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      mensaje: parseo.error.issues.map(i => i.message).join(', ')
+    })
+  }
+  const texto = parseo.data.text.toLowerCase()
+  const resultados = mundiales.filter(m =>
+    [m.nombre, m.sede, m.campeon, m.subcampeon, m.goleador, m.resumen, m.descripcion]
+      .some(campo => campo.toLowerCase().includes(texto))
+  )
+  res.json({ texto: parseo.data.text, total: resultados.length, resultados })
+})
+
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    mensaje: `Ruta ${req.method} ${req.path} no definida`
+  })
 })
 
 app.listen(PORT, () => {
